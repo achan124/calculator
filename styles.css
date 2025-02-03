@@ -1,3 +1,7 @@
+body {
+    background-color: black;
+}
+
 .calculatorContainer {
     width: 500px;
     height: 600px;
@@ -22,15 +26,26 @@ p {
 button {
     width: 90px;
     padding: 15px 0px;
-    margin: 3px 3px;
+    margin: 5px 3px;
     border-radius: 25px;
     border-style: none;
 }
 
-.btn2 {
+.nums button{
+    margin-right: 24px;
+}
+
+.calculate {
     background-color: #848C8E;
 }
 
-.btn3 {
+.operator {
     background-color: #DCF763;
 }
+
+.is-depressed {
+    background-color: #8d9f3f;;
+    color: white;
+    border: #435058;
+    transform: scale(0.95);
+  }
