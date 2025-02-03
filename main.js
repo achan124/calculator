@@ -3,109 +3,203 @@
 const calculator = document.querySelector('.buttonsContainer');
 const numbers = document.querySelector('.numbers');
 
+// when a button is pressed:
 calculator.addEventListener('click', e => {
+    if (!e.target.matches('button')) return 
 
-    // initialized previous key type if exists
-    const previousKeyType = calculator.dataset.previousKeyType;
+    const key = e.target; // the button
+    const displayedNum = numbers.textContent;
 
-    if (e.target.matches('button')) {
+    // changes the numbers displayed on the calculator screen
+    const resultString = createResultString(key, displayedNum, calculator.dataset);
+    numbers.textContent = resultString;
 
-        // saves button and action
-        const key = e.target;
-        const action = key.dataset.action;
-
-        // if there was an operator pressed previously, removes pressed styling
-        Array.from(calculator.querySelectorAll('button'))
-            .forEach(b => {
-                b.classList.remove('is-depressed');
-        });
-
-        // 1. Number is pressed
-        if (!action) {
-
-            // restarts with new number in cases: (0 <- 0) (num after operator)
-            if (numbers.textContent === '0' || previousKeyType === 'operator') {
-                numbers.textContent = e.target.textContent;
-
-            // appends number to current
-            } else {
-                numbers.textContent += e.target.textContent;
-            }
-            calculator.dataset.previousKeyType = 'number';
-
-        // 2. CE is pressed -> resets display
-        } else if (action === 'clear'){
-            numbers.textContent = '0';
-            calculator.dataset.previousKeyType = 'clear';
-
-        // 3. Decimal is pressed -> no (..) or (operation <- .)
-        } else if (action === 'decimal') {
-            if (previousKeyType === 'operator') {
-                numbers.textContent = '0';
-            } else if (!numbers.textContent.includes('.')) {
-                numbers.textContent += ".";
-            }
-            calculator.dataset.previousKeyType = 'decimal';
-
-        // 4. Operation is pressed
-        } else if (action === 'add' || 
-                   action === 'subtract' || 
-                   action === 'multiply' || 
-                   action === 'divide') {
-
-            // saves values and operator for calculation
-            const valueOne = calculator.dataset.valueOne;
-            const selectedOperator = calculator.dataset.selectedOperator;
-            const valueTwo = numbers.textContent;
-
-            // only calculates if two values have been entered with an operater between
-            // prevents pressing operator multiple times to continue calculating
-            if (valueOne && selectedOperator && previousKeyType != 'operator') {
-                const calcValue = calculate(valueOne, selectedOperator, valueTwo);
-
-                // assigns calculated value as to first value and displays
-                numbers.textContent = calcValue;
-                calculator.dataset.valueOne = calcValue;
-            } else {
-
-                // in the case that this was the first operator pressed
-                // assigns first number as value one
-                calculator.dataset.valueOne = numbers.textContent;
-            }
-
-            // adds styling to pressed operator buttons
-            key.classList.add('is-depressed');
-            calculator.dataset.previousKeyType = 'operator';
-            calculator.dataset.selectedOperator = action; 
-            
-        // 5. Calculate is pressed
-        } else if (action === 'calculate') {
-            const valueOne = calculator.dataset.valueOne;
-            const selectedOperator = calculator.dataset.selectedOperator;
-            const valueTwo = numbers.textContent;
-
-            // if valueOne is set, then we know that an operator has been pressed
-            if (valueOne) {
-                numbers.textContent = calculate(valueOne, selectedOperator, valueTwo);
-            }
-            calculator.dataset.previousKeyType = 'calculate';
-        }
-    }
+    // updates variables and visual states
+    updateCalculatorState(key, calculator, resultString, displayedNum);
+    updateVisualState(key, calculator);
+    
 });
 
-// function to do calculations
-const calculate = (v1, operator, v2) => {
-    let result = '';
-    if (operator === 'add') {
-        result = parseFloat(v1) + parseFloat(v2);
-    } else if (operator === 'subtract') {
-        result = parseFloat(v1) - parseFloat(v2);
-    } else if (operator === 'multiply') {
-        result = parseFloat(v1) * parseFloat(v2);
-    } else if (operator === 'divide') {
-        result = parseFloat(v1) / parseFloat(v2);
+// creates string value to update on calculator screen
+const createResultString = (key, displayedNum, state) => {
+    const keyContent = key.textContent;
+    const keyType = getKeyType(key);
+    const {
+        valueOne,
+        modValue,
+        selectedOperator,
+        previousKeyType
+    } = state;
+
+    if (keyType === 'number') {
+        if (
+            displayedNum === '0' || 
+            previousKeyType === 'operator' || 
+            previousKeyType === 'calculate'
+        ) {
+            return keyContent;
+        } else {
+            return displayedNum + keyContent;
+        }
     }
 
-    console.log('result: ' + result);
-    return result;
+    if (keyType === 'decimal') {
+        
+        // resets display after pressing an operator or "="
+        if (previousKeyType === 'operator' || previousKeyType === 'calculate') {
+            return '0.';
+        } 
+
+        // prevents multiple decimals
+        if (!displayedNum.includes('.')) {
+            return displayedNum + ".";
+        }
+        return displayedNum;
+    }
+
+    if (keyType === 'operator') {
+
+        // only calculates if two values have been entered
+        // prevents additional calculations when pressing operator multiple times
+        if (
+            valueOne && 
+            selectedOperator && 
+            previousKeyType != 'operator'  && 
+            previousKeyType != 'calculate'
+        ) {
+            return calculate(valueOne, selectedOperator, displayedNum);
+
+        // if only one value has been entered, resets dispay and shows only the new num
+        } else {
+            return displayedNum;
+        }
+    }
+
+    if (keyType === 'clear') {
+        return 0;
+    }
+
+    if (keyType === 'calculate') {
+
+        // if v1 exists, that means an operator was pressed and we can do a calculation
+        // otherwise, does nothing
+        if (valueOne) {
+
+            // if "=" is pressed multiple times in a row, calcuates using the modValue
+                // user enters: (2 + 3 ==)
+                // 2 + 3 = 5 -> 5 stored as v1, 3 stored as v2
+                // 5 + 3 = 8
+            // else, this is the first time and will use values normally
+            return previousKeyType === 'calculate'
+                ? calculate(displayedNum, selectedOperator, modValue)
+                : calculate(valueOne, selectedOperator, displayedNum)
+        } else {
+            return displayedNum;
+        }
+    }
+}
+
+// finds the keyType (data-action or "number")
+const getKeyType = (key) => { 
+    const { action } = key.dataset;
+    if (!action) return 'number';
+
+    // groups operations together
+    if (
+        action === "add" || 
+        action === "subtract" || 
+        action === "multiply" || 
+        action === "divide"
+    ) return "operator";
+
+    return action;
+}
+
+// updates variables used in calculations
+const updateCalculatorState = (key, calculator, calculatedValue, displayedNum) => {
+    const keyType = getKeyType(key);
+    const {
+        valueOne,
+        selectedOperator,
+        modValue,
+        previousKeyType
+    } = calculator.dataset;
+
+    // updates keyType for previously pressed button
+    calculator.dataset.previousKeyType = keyType;
+
+    if (keyType === 'operator') {
+        calculator.dataset.selectedOperator = key.dataset.action; 
+
+        // if all true, then means that calculation has been completed 
+            // and updates v1 to be the calculated value
+        // else keeps v1 as displayed number (eg. first time pressing operator)
+        if (
+            valueOne && 
+            selectedOperator && 
+            previousKeyType != 'operator'  && 
+            previousKeyType != 'calculate'
+        ) {
+            calculator.dataset.valueOne = calculatedValue;
+        } else {
+            calculator.dataset.valueOne = displayedNum;
+        }
+    }
+
+    if (keyType === 'calculate') {
+
+        // if "=" is pressed multiple times in a row, saves modValue
+            // to be used in those repeated calculations
+        // else, modValue is the displayed number (v2)
+        if (valueOne && previousKeyType === 'calculate') {
+            calculator.dataset.modValue = modValue;
+        } else {
+            calculator.dataset.modValue = displayedNum;
+        }
+    }
+
+    if (keyType === 'clear' && key.textContent === 'AC') { 
+        calculator.dataset.valueOne = '';
+        calculator.dataset.selectedOperator = '';
+        calculator.dataset.modValue = '';
+        calculator.dataset.previousKeyType = '';
+    } 
+}
+
+// updates styling for pressed buttons and AC/CE
+const updateVisualState = (key, calculator) => {
+    const keyType = getKeyType(key);
+
+    // removes all prev depressions each time a button is pressed
+    Array.from(calculator.querySelectorAll('button'))
+        .forEach(b => {
+            b.classList.remove('is-depressed');
+    });
+
+    // adds depressions for only operators
+    if (keyType === "operator") {
+        key.classList.add('is-depressed');
+    }
+
+    // allows for All Clear after pressing Clear Entry
+    if (keyType === 'clear' && key.textContent != 'AC') {
+        key.textContent = 'AC';
+    }
+
+    // changes from All Clear to Clear Entry after something has been entered
+    if (keyType !== 'clear') {
+        const clearButton = calculator.querySelector('[data-action=clear]');
+        clearButton.textContent = 'CE';
+    }
+
+}
+
+// performs the calculations
+const calculate = (v1, operator, v2) => {
+    const valueOne = parseFloat(v1);
+    const valueTwo = parseFloat(v2);
+    if (operator === 'add') return valueOne + valueTwo;
+    if (operator === 'subtract') return valueOne - valueTwo;
+    if (operator === 'multiply') return valueOne * valueTwo;
+    if (operator === 'divide') return valueOne / valueTwo;
 }
